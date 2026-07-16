@@ -52,7 +52,12 @@ async def judge(req: JudgeRequest) -> dict:
         ],
         "format": JUDGE_SCHEMA,   # Ollama structured output
         "stream": False,
-        "options": {"temperature": 0.2},
+        "keep_alive": config.OLLAMA_KEEP_ALIVE,
+        "options": {
+            "temperature": 0.2,
+            "num_ctx": config.JUDGE_NUM_CTX,
+            "num_predict": config.JUDGE_NUM_PREDICT,
+        },
     }
     try:
         async with httpx.AsyncClient(timeout=config.REQUEST_TIMEOUT) as client:

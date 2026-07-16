@@ -67,25 +67,53 @@ _SCHEMA = {
 
 
 async def _analyze(client: httpx.AsyncClient, frames: list[bytes]) -> dict | None:
-    images = [base64.b64encode(f).decode("ascii") for f in frames]
-    body = {
-        "model": config.VLM_MODEL,
-        "messages": [
-            {"role": "system", "content": _SYSTEM},
-            {"role": "user", "content": _INSTRUCTION, "images": images},
-        ],
-        "format": _SCHEMA,
-        "stream": False,
-        "options": {"temperature": 0.2},
-    }
-    try:
-        r = await client.post(f"{config.OLLAMA_URL}/api/chat", json=body)
-        r.raise_for_status()
-        content = r.json().get("message", {}).get("content", "")
-    except Exception as exc:  # pragma: no cover
-        print(f"[vision] VLM error: {exc}")
-        return None
-    return _parse_json(content)
+    # Small VLMs have a tiny context (moondream/phi-2 caps at 2048 tokens, and
+    # each frame costs ~730), so a batch can overflow -> HTTP 400. Retry with
+    # progressively fewer frames rather than dropping the whole window.
+    for imgs in _shrinking(frames):
+        images = [base64.b64encode(f).decode("ascii") for f in imgs]
+        body = {
+            "model": config.VLM_MODEL,
+            "messages": [
+                {"role": "system", "content": _SYSTEM},
+                {"role": "user", "content": _INSTRUCTION, "images": images},
+            ],
+            "format": _SCHEMA,
+            "stream": False,
+            "keep_alive": config.OLLAMA_KEEP_ALIVE,
+            "options": {
+                "temperature": 0.2,
+                "num_ctx": config.VLM_NUM_CTX,
+                "num_predict": config.VLM_NUM_PREDICT,
+            },
+        }
+        try:
+            r = await client.post(f"{config.OLLAMA_URL}/api/chat", json=body)
+            r.raise_for_status()
+            return _parse_json(r.json().get("message", {}).get("content", ""))
+        except httpx.HTTPStatusError as exc:
+            detail = exc.response.text.strip()
+            # Overflowing the model's context is recoverable with fewer frames.
+            if exc.response.status_code == 400 and "context" in detail.lower() and len(imgs) > 1:
+                if config.DEBUG:
+                    print(f"[vision] context overflow with {len(imgs)} frames, retrying smaller")
+                continue
+            print(f"[vision] VLM error {exc.response.status_code}: {detail[:300]}")
+            return None
+        except Exception as exc:  # pragma: no cover
+            print(f"[vision] VLM error: {exc}")
+            return None
+    return None
+
+
+def _shrinking(frames: list[bytes]):
+    """Yield the frame batch, then halve on each retry down to a single frame."""
+    n = len(frames)
+    while n >= 1:
+        yield frames[-n:]
+        if n == 1:
+            break
+        n //= 2
 
 
 def _parse_json(text: str) -> dict | None:
@@ -119,7 +147,15 @@ async def vision_loop(
                 continue
             if config.DEBUG:
                 print(f"[vision] {json.dumps(obs)[:300]}")
-            await obs_queue.put(obs)
+            # Never block the eyes on a slow judge: if the queue is full, drop the
+            # oldest observation so the scoreboard stays live instead of falling
+            # minutes behind over the course of a fight.
+            if obs_queue.full():
+                try:
+                    obs_queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    pass
+            obs_queue.put_nowait(obs)
 
 
 def _drain_latest(q: "asyncio.Queue[bytes]", n: int) -> list[bytes]:

@@ -8,7 +8,12 @@ load_dotenv()
 
 # --- Local VLM (this machine, via Ollama) -----------------------------------
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434")
-VLM_MODEL = os.environ.get("VLM_MODEL", "moondream")
+VLM_MODEL = os.environ.get("VLM_MODEL", "qwen2.5vl:3b")
+# Keep the model resident for the whole fight so it never cold-reloads mid-round.
+OLLAMA_KEEP_ALIVE = os.environ.get("OLLAMA_KEEP_ALIVE", "30m")
+# Bound context + output so latency stays steady across a 25-min fight.
+VLM_NUM_CTX = int(os.environ.get("VLM_NUM_CTX", "4096"))
+VLM_NUM_PREDICT = int(os.environ.get("VLM_NUM_PREDICT", "512"))
 
 # --- Judge service (the PC) -------------------------------------------------
 # Set to the PC's LAN IP, e.g. http://192.168.1.50:8100. 127.0.0.1 for testing
