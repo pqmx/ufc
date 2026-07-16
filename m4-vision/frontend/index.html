@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>UFC Judge Mode</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header>
+    <h1>UFC <span>Judge Mode</span></h1>
+    <div id="status" class="status">connecting…</div>
+  </header>
+
+  <main>
+    <section class="board">
+      <div class="fighters">
+        <div class="fighter red">
+          <div class="corner-tag">RED</div>
+          <input id="name-red" class="name-input" placeholder="Red corner" />
+          <div class="total" id="total-red">0</div>
+          <ul class="tally" id="tally-red"></ul>
+        </div>
+        <div class="mid">
+          <div class="round-label">ROUND</div>
+          <div class="round-num" id="round-num">1</div>
+          <div class="clock" id="clock">--:--</div>
+        </div>
+        <div class="fighter blue">
+          <div class="corner-tag">BLUE</div>
+          <input id="name-blue" class="name-input" placeholder="Blue corner" />
+          <div class="total" id="total-blue">0</div>
+          <ul class="tally" id="tally-blue"></ul>
+        </div>
+      </div>
+
+      <table class="scorecard">
+        <thead>
+          <tr><th>Round</th><th class="c-red">Red</th><th class="c-blue">Blue</th><th>Note</th></tr>
+        </thead>
+        <tbody id="scorecard-body">
+          <tr class="empty"><td colspan="4">No completed rounds yet…</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="feed-panel">
+      <h2>Significant Shots</h2>
+      <ul id="feed" class="feed"></ul>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
